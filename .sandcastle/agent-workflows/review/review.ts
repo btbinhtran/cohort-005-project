@@ -17,8 +17,9 @@ const VERDICT = "/tmp/review-verdict.md";
 type Finding = z.infer<typeof reviewSchema>["comments"][number];
 
 // The agent fixes and commits, writes the verdict file, and hands back the
-// findings it left. The workflow pushes the commits, posts the verdict and
-// the inline comments, and marks the PR ready.
+// findings it left. This script lists those findings in the verdict. The
+// workflow pushes the commits, posts the verdict and the inline comments,
+// and marks the PR ready.
 const result = await runWithExtraction({
   name: "review",
   agent: claudeAgent(),

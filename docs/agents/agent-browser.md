@@ -29,11 +29,12 @@ the server, e.g. when a hot reload leaves the page stale.
 
 The seed is the same on every run, so these ids are stable:
 
-| User                   | id  | Useful for                                                                                                                                                |
-| ---------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Alex Rivera, admin     | 1   | `/admin/*`                                                                                                                                                |
-| Sarah Chen, instructor | 2   | `/instructor/*`, owns `introduction-to-typescript`                                                                                                        |
-| Emma Wilson, student   | 5   | enrolled in `introduction-to-typescript`: lesson 18 (notes, discussion), lesson 3 (a quiz). Lesson 40 of `design-systems-with-tailwind` is locked for her |
+| User                      | id  | Useful for                                                                                                                                                |
+| ------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alex Rivera, admin        | 1   | `/admin/*`                                                                                                                                                |
+| Sarah Chen, instructor    | 2   | `/instructor/*`, owns `introduction-to-typescript`                                                                                                        |
+| Emma Wilson, student      | 5   | enrolled in `introduction-to-typescript`: lesson 18 (notes, discussion), lesson 3 (a quiz). Lesson 40 of `design-systems-with-tailwind` is locked for her |
+| Bossy McBossface, student | 10  | no enrollments: the locked view of a lesson                                                                                                               |
 
 Switch user from the page, so the browser keeps the cookie:
 

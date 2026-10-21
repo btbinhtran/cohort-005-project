@@ -36,6 +36,8 @@ export const reviewSchema = z
             ),
         })
       )
-      .describe("One entry per finding you left unfixed. Empty is fine."),
+      .describe(
+        "One entry per finding you left unfixed, on the first line it concerns. Empty is fine."
+      ),
   })
   .describe("The review's unfixed findings.");

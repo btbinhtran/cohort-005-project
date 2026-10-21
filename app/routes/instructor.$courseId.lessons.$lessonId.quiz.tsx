@@ -12,13 +12,15 @@ import { Button } from "~/components/ui/button";
 import { ArrowLeft, ArrowRight, Trash2, AlertTriangle } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
-import { parseFormData } from "~/lib/validation";
+import { parseFormData, parseParams, recordId } from "~/lib/validation";
 import { generateId, type WizardState } from "~/lib/quiz-wizard";
 import { StepIndicator } from "~/components/quiz-step-indicator";
 import { QuizSettingsStep } from "~/components/quiz-settings-step";
 import { QuizQuestionsStep } from "~/components/quiz-questions-step";
 import { QuizAnswersStep } from "~/components/quiz-answers-step";
 import { QuizReviewStep } from "~/components/quiz-review-step";
+
+const lessonParamsSchema = z.object({ lessonId: recordId });
 
 const quizActionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -51,7 +53,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     { courseId: params.courseId, lessonId: params.lessonId }
   );
   // requireCapability has checked this is a lesson in the course.
-  const lesson = quizBuilder.getLessonById(Number(params.lessonId));
+  const lesson = quizBuilder.getLessonById(
+    parseParams(params, lessonParamsSchema).lessonId
+  );
   const mod = lesson && quizBuilder.getModuleById(lesson.moduleId);
   if (!lesson || !mod) {
     throw data("Lesson not found.", { status: 404 });
@@ -75,7 +79,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     lessonId: params.lessonId,
   });
   // requireCapability has checked this is a lesson in the course.
-  const lessonId = Number(params.lessonId);
+  const { lessonId } = parseParams(params, lessonParamsSchema);
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, quizActionSchema);

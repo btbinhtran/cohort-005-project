@@ -11,13 +11,27 @@ Review what the PR changed. Code it moved without changing is out of scope:
 name the move once in the verdict, and leave the code's existing problems to
 their own tickets.
 
-Leave the human reviewer as little as possible. Fix every finding you can on
-`{{BRANCH}}`, and commit each fix through the pre-commit hook. The workflow
-pushes your commits. Leave `.github/` untouched.
+A split that `scripts/check-file-tokens.js` forced is in scope for any
+ticket: tell both axes so. Check moved code with
+`git diff --color-moved=plain --color-moved-ws=allow-indentation-change origin/{{BASE_REF}}...HEAD`,
+which shows any line that changed on the way.
+
+## Fix everything a person does not have to decide
+
+The human reviewer gets **decisions** only: product behaviour the ticket
+leaves open, or a trade-off between two documented rules. Everything else you
+fix on `{{BRANCH}}`, however large: deepening a module, taking `db` as a
+parameter, writing the tests a module lacks, extracting a shared component,
+splitting a function off a lint exemption list. A fix is done when
+`npm run check` passes and the hook accepts its commit. Commit each fix on
+its own. The workflow pushes your commits. Leave `.github/` untouched.
 
 Every finding you leave unfixed is written out once, as an inline comment on
-its file and line. You will be asked for them as structured output, and the
-workflow lists them at the end of the verdict.
+the first line it concerns. Its body says what decision it needs. You will be
+asked for them as structured output, and the workflow lists them at the end
+of the verdict.
+
+## The verdict
 
 Write your verdict on the branch, after your fixes, to /tmp/review-verdict.md:
 

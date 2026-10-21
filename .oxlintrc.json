@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "jsx-a11y", "import", "vitest"],
-  "jsPlugins": ["./lint-rules/sql-raw.js"],
+  "jsPlugins": ["./lint-rules/sql-raw.js", "./lint-rules/input.js"],
   "categories": {
     "correctness": "error"
   },
@@ -86,7 +86,8 @@
     "import/no-default-export": "error",
     "vitest/no-disabled-tests": "error",
     "vitest/no-focused-tests": "error",
-    "sql/no-dynamic-raw": "error"
+    "sql/no-dynamic-raw": "error",
+    "input/no-number-coercion": "error"
   },
   "overrides": [
     {

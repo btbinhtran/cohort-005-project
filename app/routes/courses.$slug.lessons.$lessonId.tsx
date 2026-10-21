@@ -40,7 +40,9 @@ import { QuizSection } from "~/components/lesson/quiz-section";
 import { useAutoplay } from "~/components/lesson/use-autoplay";
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
-import { parseFormData } from "~/lib/validation";
+import { parseFormData, parseParams, recordId } from "~/lib/validation";
+
+const lessonParamsSchema = z.object({ lessonId: recordId });
 
 const createCommentSchema = z.object({
   intent: z.literal("create-comment"),
@@ -112,7 +114,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   const page = await lessonViewer.loadLessonPage(
     decisions,
-    Number(params.lessonId)
+    parseParams(params, lessonParamsSchema).lessonId
   );
   if (!page) {
     throw data("Lesson not found", { status: 404 });
@@ -139,7 +141,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     ref
   );
   const currentUserId = person.id;
-  const lessonId = Number(params.lessonId);
+  const { lessonId } = parseParams(params, lessonParamsSchema);
 
   if (
     intent === "create-comment" ||
@@ -251,10 +253,11 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   if (intent === "submit-quiz") {
-    const quizId = Number(formData.get("quizId"));
-    if (isNaN(quizId)) {
+    const quizIdResult = recordId.safeParse(formData.get("quizId"));
+    if (!quizIdResult.success) {
       throw data("Invalid quiz ID", { status: 400 });
     }
+    const quizId = quizIdResult.data;
     // Scope the quiz to this lesson so a quiz elsewhere can't be reached by
     // posting its id to this route.
     const quiz = lessonViewer.getQuiz(quizId);

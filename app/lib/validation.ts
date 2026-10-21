@@ -1,5 +1,11 @@
 import { data } from "react-router";
-import type { z } from "zod";
+import { z } from "zod";
+
+/**
+ * A database id from a route param or form field: a positive integer.
+ * Refuses "" and a missing value, which `Number()` would turn into 0.
+ */
+export const recordId = z.coerce.number().int().positive();
 
 type ParseSuccess<T> = { success: true; data: T };
 type ParseFailure = {

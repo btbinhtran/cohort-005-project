@@ -123,6 +123,14 @@ module.exports = {
       from: { path: "^app/components/" },
       to: { path: ["^app/routes/", "routes/\\+types/"] },
     },
+    {
+      name: "lib-no-components",
+      comment:
+        "app/lib holds data and logic; components depend on it, never the reverse. A type a component and app/lib share lives in app/lib.",
+      severity: "error",
+      from: { path: "^app/lib/" },
+      to: { path: "^app/components/" },
+    },
   ],
   options: {
     doNotFollow: { path: "node_modules" },

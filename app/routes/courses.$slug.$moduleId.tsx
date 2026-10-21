@@ -28,6 +28,10 @@ import {
 } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 import { formatDuration } from "~/lib/utils";
+import { z } from "zod";
+import { parseParams, recordId } from "~/lib/validation";
+
+const moduleParamsSchema = z.object({ moduleId: recordId });
 
 function getCourseWithDetails(id: number) {
   const course = db
@@ -155,7 +159,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Course not found", { status: 404 });
   }
 
-  const moduleWithLessons = getModuleWithLessons(Number(params.moduleId));
+  const moduleWithLessons = getModuleWithLessons(
+    parseParams(params, moduleParamsSchema).moduleId
+  );
   if (!moduleWithLessons) {
     throw data("Module not found", { status: 404 });
   }

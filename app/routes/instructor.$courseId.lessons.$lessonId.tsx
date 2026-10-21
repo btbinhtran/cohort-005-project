@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
-import { parseFormData } from "~/lib/validation";
+import { parseFormData, parseParams, recordId } from "~/lib/validation";
+
+const lessonParamsSchema = z.object({ lessonId: recordId });
 
 const updateLessonSchema = z.object({
   intent: z.literal("update-lesson"),
@@ -94,7 +96,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     "manage",
     { courseId: params.courseId, lessonId: params.lessonId }
   );
-  const { lesson, module: mod } = getLessonWithModule(Number(params.lessonId));
+  const { lesson, module: mod } = getLessonWithModule(
+    parseParams(params, lessonParamsSchema).lessonId
+  );
   const lessonId = lesson.id;
 
   const quiz = getQuizByLessonId(lessonId);
@@ -108,7 +112,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     lessonId: params.lessonId,
   });
   // requireCapability has checked this is a lesson in the course.
-  const lessonId = Number(params.lessonId);
+  const { lessonId } = parseParams(params, lessonParamsSchema);
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, updateLessonSchema);
