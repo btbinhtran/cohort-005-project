@@ -115,7 +115,14 @@
       }
     },
     {
-      "files": ["request-logger/render.ts", "request-logger/render.test.ts"],
+      "files": [
+        "request-logger/render.test.ts",
+        "request-logger/render.ts",
+        "request-logger/render/anthropic.ts",
+        "request-logger/render/gemini.ts",
+        "request-logger/render/openai.ts",
+        "request-logger/render/shared.ts"
+      ],
       "rules": {
         "typescript/no-explicit-any": "off"
       }
@@ -130,8 +137,7 @@
         "app/routes/courses.$slug.tsx",
         "app/routes/courses.tsx",
         "request-logger/agents.test.ts",
-        "request-logger/agents.ts",
-        "request-logger/render.ts"
+        "request-logger/agents.ts"
       ],
       "rules": {
         "max-lines": "off"
@@ -210,8 +216,8 @@
         "request-logger/agents.ts",
         "request-logger/config.ts",
         "request-logger/proxy.ts",
-        "request-logger/render.ts",
-        "scripts/seed.ts",
+        "request-logger/render/anthropic.ts",
+        "request-logger/render/openai.ts",
         "scripts/seed/comments.ts",
         "scripts/seed/courses/data-visualisation.ts",
         "scripts/seed/courses/design-systems.ts",
@@ -278,7 +284,8 @@
     {
       "files": [
         "app/routes/courses.$slug.lessons.$lessonId.tsx",
-        "request-logger/render.ts"
+        "request-logger/render/gemini.ts",
+        "request-logger/render/openai.ts"
       ],
       "rules": {
         "max-depth": "off"
