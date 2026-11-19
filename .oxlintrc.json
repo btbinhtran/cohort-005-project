@@ -132,7 +132,8 @@
       "files": [
         "app/lib/comments.server.test.ts",
         "app/routes/admin.categories.tsx",
-        "app/routes/courses.$slug.purchase.tsx"
+        "app/routes/courses.$slug.purchase.tsx",
+        "app/routes/courses.tsx"
       ],
       "rules": {
         "max-lines": "off"
@@ -226,6 +227,7 @@
         "request-logger/proxy.ts",
         "request-logger/render/anthropic.ts",
         "request-logger/render/openai.ts",
+        "scripts/seed.ts",
         "scripts/seed/comments.ts",
         "scripts/seed/courses/data-visualisation.ts",
         "scripts/seed/courses/design-systems.ts",
