@@ -132,8 +132,7 @@
       "files": [
         "app/lib/comments.server.test.ts",
         "app/routes/admin.categories.tsx",
-        "app/routes/courses.$slug.purchase.tsx",
-        "app/routes/courses.$slug.tsx"
+        "app/routes/courses.$slug.purchase.tsx"
       ],
       "rules": {
         "max-lines": "off"
@@ -149,6 +148,8 @@
         "app/components/course-sales-copy-panel.tsx",
         "app/components/course-settings-panel.tsx",
         "app/components/course-students-table.tsx",
+        "app/components/course/course-content.tsx",
+        "app/components/course/request-refund.tsx",
         "app/components/lesson/curriculum-sidebar.tsx",
         "app/components/lesson/lesson-pager.tsx",
         "app/components/lesson/locked-lesson.tsx",
@@ -178,6 +179,8 @@
         "app/lib/refunds/decisions.server.ts",
         "app/lib/refunds/raise.server.ts",
         "app/lib/seat-claims.server.ts",
+        "app/modules/course-detail/lib/course-page.ts",
+        "app/modules/course-detail/lib/course-queries.ts",
         "app/modules/course-editor/lib/course.ts",
         "app/modules/course-editor/lib/roster.ts",
         "app/modules/instructor-analytics/lib/buyers.ts",
