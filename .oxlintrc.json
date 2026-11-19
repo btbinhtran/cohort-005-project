@@ -135,9 +135,7 @@
         "app/routes/courses.$slug.lessons.$lessonId.tsx",
         "app/routes/courses.$slug.purchase.tsx",
         "app/routes/courses.$slug.tsx",
-        "app/routes/courses.tsx",
-        "request-logger/agents.test.ts",
-        "request-logger/agents.ts"
+        "app/routes/courses.tsx"
       ],
       "rules": {
         "max-lines": "off"
