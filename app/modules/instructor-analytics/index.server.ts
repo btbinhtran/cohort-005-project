@@ -2,20 +2,22 @@ import { db } from "~/db";
 import {
   getInstructorAnalytics,
   type AnalyticsViewer,
-  type Db,
 } from "./lib/instructor-analytics";
+import type { Db } from "./lib/scope";
 
 export type {
   AnalyticsViewer,
-  CourseCountryRevenue,
+  InstructorAnalytics,
+  RefundExposure,
+} from "./lib/instructor-analytics";
+export type { CourseCountryRevenue } from "./lib/country-revenue";
+export type {
   CourseFunnel,
   CourseProgressSummary,
   FunnelLesson,
-  InstructorAnalytics,
-  QuizPassRate,
-  RefundExposure,
-  RevenueSeries,
-} from "./lib/instructor-analytics";
+} from "./lib/course-progress";
+export type { QuizPassRate } from "./lib/quiz-pass-rates";
+export type { RevenueSeries } from "./lib/revenue-over-time";
 
 /**
  * Instructor analytics bound to a database. The app uses
