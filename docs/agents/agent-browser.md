@@ -7,16 +7,45 @@ built for exactly this — one command per action, an answer on stdout.
 
 ## Once, per machine
 
+The factory workflows install it before the agent starts; `which
+agent-browser` tells you. Anywhere else:
+
 ```bash
 npm install -g agent-browser
 agent-browser install
 ```
 
-## Asking your own question
+## Starting the app
 
-Start the app with `npm run dev` first. The examples below use
-`http://localhost:5173`, the dev server's default address — if `npm run dev`
-printed a different one, use that.
+```bash
+npm run dev:bg
+```
+
+It starts the dev server in the background on `http://localhost:5173`, logs to
+`/tmp/dev.log`, and returns once the server answers. Run it again to restart
+the server, e.g. when a hot reload leaves the page stale.
+
+## Signing in
+
+The seed is the same on every run, so these ids are stable:
+
+| User                   | id  | Useful for                                                                                                                                                |
+| ---------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alex Rivera, admin     | 1   | `/admin/*`                                                                                                                                                |
+| Sarah Chen, instructor | 2   | `/instructor/*`, owns `introduction-to-typescript`                                                                                                        |
+| Emma Wilson, student   | 5   | enrolled in `introduction-to-typescript`: lesson 18 (notes, discussion), lesson 3 (a quiz). Lesson 40 of `design-systems-with-tailwind` is locked for her |
+
+Switch user from the page, so the browser keeps the cookie:
+
+```bash
+agent-browser open http://localhost:5173/
+agent-browser eval 'fetch("/api/switch-user",{method:"POST",body:new URLSearchParams({userId:"5"})}).then(r=>r.status)'
+```
+
+Seed rows you add while testing stay in `data.db`; delete them before you
+finish.
+
+## Asking your own question
 
 A screenshot is pixels. To verify a fix you need a yes or a no, so read the
 DOM:

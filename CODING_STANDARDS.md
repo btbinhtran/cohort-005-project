@@ -113,3 +113,12 @@ Name and extract until a comment is unnecessary. A comment earns its place
 only for a _why_ the code cannot express: a constraint, a decision, a link to
 the ADR behind it. A comment that restates _what_ the code does goes stale the
 first time the code changes.
+
+## Forms work before JavaScript loads
+
+A form submits from the server-rendered HTML: its submit button renders
+enabled, and the server's validation answers a bad submission. Client state
+may disable the button or explain why once the page has hydrated. The lesson
+note's Save button once rendered `disabled` until it had a changed draft, so
+the form did nothing before hydration, and the server's "Write something
+before saving" message could never appear.

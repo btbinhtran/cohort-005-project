@@ -71,7 +71,10 @@ module.exports = {
         "No dependency cycles. Scope to `^${R}/` if you want to allow cycles outside packages.",
       severity: "error",
       from: {},
-      to: { circular: true },
+      // A type-only import is erased at build time, so it cannot close a
+      // cycle at runtime. The Knock adapter imports its port's types while the
+      // port loads the adapter lazily.
+      to: { circular: true, viaOnly: { dependencyTypesNot: ["type-only"] } },
     },
 
     // --- Layering (optional, off by default) ----------------------------------
@@ -104,9 +107,28 @@ module.exports = {
         path: ["^app/db/index\\.ts$", "^node_modules/better-sqlite3/"],
       },
     },
+    {
+      name: "modules-no-ui",
+      comment:
+        "A module is the layer under the UI. It may not import components or routes. A type the UI needs is declared in the module, and the UI imports it from the module's entry point.",
+      severity: "error",
+      from: { path: `^${R}/` },
+      to: { path: ["^app/components/", "^app/routes/", "routes/\\+types/"] },
+    },
+    {
+      name: "components-no-routes",
+      comment:
+        "A shared component declares its own props. Importing a route, or a route's generated `+types`, ties the component to that one route.",
+      severity: "error",
+      from: { path: "^app/components/" },
+      to: { path: ["^app/routes/", "routes/\\+types/"] },
+    },
   ],
   options: {
     doNotFollow: { path: "node_modules" },
+    // Track `import type` too, so the layering rules see a component reaching
+    // into a route's generated types.
+    tsPreCompilationDeps: true,
     tsConfig: { fileName: "tsconfig.json" },
     enhancedResolveOptions: {
       extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
