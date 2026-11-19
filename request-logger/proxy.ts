@@ -23,13 +23,8 @@ import path from "node:path";
 import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { renderMarkdown } from "./render";
-import {
-  resolveChoice,
-  shouldLogRequest,
-  type AgentChoice,
-  type CustomTarget,
-  type ResolvedTarget,
-} from "./agents";
+import { resolveChoice, shouldLogRequest } from "./agents";
+import type { AgentChoice, CustomTarget, ResolvedTarget } from "./agents/types";
 import { askChoice, clearChoice, loadChoice, saveChoice } from "./config";
 import { bold, dim, printBanner, wrap } from "./proxy/banner";
 import {

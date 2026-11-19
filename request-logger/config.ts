@@ -21,18 +21,17 @@
 import fs from "node:fs";
 import { styleText } from "node:util";
 import { cancel, confirm, isCancel, intro, select, text } from "@clack/prompts";
+import { agentProviders, listAgents } from "./agents";
+import { customTargetNeedsModel } from "./agents/custom-target";
 import {
-  agentProviders,
   CUSTOM_ID,
   CUSTOM_LABEL,
-  customTargetNeedsModel,
-  listAgents,
   OTHER_ID,
   OTHER_LABEL,
   WIRE_FORMAT_OPTIONS,
   type AgentChoice,
   type RendererId,
-} from "./agents";
+} from "./agents/types";
 import { discoverModelIds } from "./model-discovery";
 
 export type WizardAnswer = {

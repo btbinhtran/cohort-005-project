@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { resolveChoice, customTargetNeedsModel, CUSTOM_ID } from "../../agents";
+import { resolveChoice } from "../../agents";
+import { customTargetNeedsModel } from "../custom-target";
+import { CUSTOM_ID } from "../types";
 import { PORT, customTarget } from "./fixtures";
 
 // ---------------------------------------------------------------------------

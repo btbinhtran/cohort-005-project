@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
-import { resolveChoice, CUSTOM_ID } from "../../agents";
+import { resolveChoice } from "../../agents";
+import { CUSTOM_ID } from "../types";
 import { PORT, customTarget } from "./fixtures";
 
 describe("resolveChoice — custom base URL, per-agent command template", () => {

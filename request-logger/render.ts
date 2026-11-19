@@ -16,7 +16,7 @@
  */
 
 import zlib from "node:zlib";
-import type { RendererId } from "./agents";
+import type { RendererId } from "./agents/types";
 import {
   renderAnthropicRequest,
   renderAnthropicResponse,

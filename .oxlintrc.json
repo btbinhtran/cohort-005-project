@@ -134,8 +134,7 @@
         "app/routes/admin.categories.tsx",
         "app/routes/courses.$slug.lessons.$lessonId.tsx",
         "app/routes/courses.$slug.purchase.tsx",
-        "app/routes/courses.$slug.tsx",
-        "app/routes/courses.tsx"
+        "app/routes/courses.$slug.tsx"
       ],
       "rules": {
         "max-lines": "off"
@@ -212,6 +211,7 @@
         "app/routes/signup.tsx",
         "app/routes/team.tsx",
         "request-logger/agents.ts",
+        "request-logger/agents/custom-target.ts",
         "request-logger/config.ts",
         "request-logger/proxy.ts",
         "request-logger/render/anthropic.ts",
@@ -269,7 +269,7 @@
         "app/routes/home.tsx",
         "app/routes/instructor.$courseId.lessons.$lessonId.tsx",
         "app/routes/instructor.new.tsx",
-        "request-logger/agents.ts",
+        "request-logger/agents/custom-target.ts",
         "scripts/push-knock-workflows.ts",
         "scripts/seed/quiz-attempts.ts",
         "scripts/seed/team-licences.ts",

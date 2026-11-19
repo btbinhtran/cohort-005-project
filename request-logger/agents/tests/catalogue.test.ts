@@ -4,10 +4,8 @@ import {
   listAgents,
   listProviders,
   resolveChoice,
-  CUSTOM_ID,
-  ISSUE_URL,
-  OTHER_ID,
 } from "../../agents";
+import { CUSTOM_ID, ISSUE_URL, OTHER_ID } from "../types";
 import { PORT } from "./fixtures";
 
 describe('resolveChoice — "Other"', () => {
