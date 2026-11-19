@@ -8,6 +8,8 @@ export type NoteEditorInput = {
   saving: boolean;
   /** The error the last save came back with, if it failed. */
   error: string | undefined;
+  /** The draft that last save sent, so an edit since then clears its error. */
+  submittedDraft: string | undefined;
 };
 
 export type NoteEditorStatus =
@@ -30,6 +32,7 @@ export function describeEditor({
   savedBody,
   saving,
   error,
+  submittedDraft,
 }: NoteEditorInput): NoteEditorState {
   const trimmed = draft.trim();
   const tooLong = trimmed.length > MAX_NOTE_LENGTH;
@@ -37,7 +40,12 @@ export function describeEditor({
   const changed = trimmed !== (savedBody ?? "");
 
   return {
-    status: statusOf({ saving, error, changed, hasSaved: savedBody !== null }),
+    status: statusOf({
+      saving,
+      error: draft === submittedDraft ? error : undefined,
+      changed,
+      hasSaved: savedBody !== null,
+    }),
     canSave: !saving && changed && trimmed.length > 0 && !tooLong,
     tooLong,
     length: trimmed.length,

@@ -19,11 +19,13 @@ export type SavedNote = { body: string; updatedAt: string } | null;
 export function LessonNote({ note }: { note: SavedNote }) {
   const fetcher = useFetcher<{ ok: boolean; error?: string }>();
   const [draft, setDraft] = useState(note?.body ?? "");
+  const [submittedDraft, setSubmittedDraft] = useState<string>();
   const editor = describeNoteEditor({
     draft,
     savedBody: note?.body ?? null,
     saving: fetcher.state !== "idle",
     error: fetcher.data?.error,
+    submittedDraft,
   });
 
   return (
@@ -40,7 +42,11 @@ export function LessonNote({ note }: { note: SavedNote }) {
           </span>
         </div>
 
-        <fetcher.Form method="post" className="space-y-2">
+        <fetcher.Form
+          method="post"
+          className="space-y-2"
+          onSubmit={() => setSubmittedDraft(draft)}
+        >
           <input type="hidden" name="intent" value="save-note" />
           <Textarea
             name="body"

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { describeNoteEditor } from "../index";
 import { MAX_NOTE_LENGTH } from "~/lib/notes";
 
-const idle = { saving: false, error: undefined };
+const idle = { saving: false, error: undefined, submittedDraft: undefined };
 
 describe("describeNoteEditor", () => {
   it("is empty, with Save disabled, before the Student writes anything", () => {
@@ -105,6 +105,7 @@ describe("describeNoteEditor", () => {
       savedBody: null,
       saving: true,
       error: "Earlier failure",
+      submittedDraft: "Result types",
     });
     expect(state.status).toBe("saving");
     expect(state.canSave).toBe(false);
@@ -116,8 +117,21 @@ describe("describeNoteEditor", () => {
       savedBody: null,
       saving: false,
       error: "Something went wrong",
+      submittedDraft: "Result types",
     });
     expect(state.status).toBe("error");
+    expect(state.canSave).toBe(true);
+  });
+
+  it("drops the error once the Student edits the draft it was about", () => {
+    const state = describeNoteEditor({
+      draft: "Result types and never",
+      savedBody: null,
+      saving: false,
+      error: "Something went wrong",
+      submittedDraft: "Result types",
+    });
+    expect(state.status).toBe("unsaved");
     expect(state.canSave).toBe(true);
   });
 });
