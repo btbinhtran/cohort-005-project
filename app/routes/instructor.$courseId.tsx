@@ -1,542 +1,34 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link, useFetcher } from "react-router";
 import { toast } from "sonner";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  type DropResult,
-} from "@hello-pangea/dnd";
 import type { Route } from "./+types/instructor.$courseId";
 import { coursePermissions } from "~/modules/permissions/course-permissions.server";
-import { markdown } from "~/lib/text";
-import { CourseStatus } from "~/db/schema";
-import { db } from "~/db";
 import {
-  courses,
-  categories,
-  users,
-  modules,
-  lessons,
-  enrollments,
-  lessonProgress,
-  LessonProgressStatus,
-  quizzes,
-  quizAttempts,
-} from "~/db/schema";
-import { eq, and, or, sql, desc, gt, gte } from "drizzle-orm";
-import { formatDuration } from "~/lib/utils";
-import { MonacoMarkdownEditor } from "~/components/monaco-markdown-editor";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
+  courseEditor,
+  courseEditorActionSchema,
+} from "~/modules/course-editor/index.server";
+import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import {
+  InlineEditableDescription,
+  InlineEditableTitle,
+} from "~/components/course-editor-header-fields";
+import { AddModuleForm } from "~/components/course-editor-module-controls";
+import { CourseOutline } from "~/components/course-outline";
+import { CourseSettingsPanel } from "~/components/course-settings-panel";
+import { CourseSalesCopyPanel } from "~/components/course-sales-copy-panel";
+import { CourseStudentsTable } from "~/components/course-students-table";
 import {
   ArrowLeft,
   BookOpen,
-  Clock,
-  Eye,
-  FileEdit,
-  GripVertical,
-  Pencil,
-  Plus,
-  Save,
   Settings,
-  Trash2,
   Users,
   AlertTriangle,
-  Award,
-  Globe,
   FileText,
 } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
-import { z } from "zod";
 import { parseFormData } from "~/lib/validation";
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
-
-function getCourseWithDetails(id: number) {
-  const course = db
-    .select({
-      id: courses.id,
-      title: courses.title,
-      slug: courses.slug,
-      description: courses.description,
-      salesCopy: courses.salesCopy,
-      instructorId: courses.instructorId,
-      categoryId: courses.categoryId,
-      status: courses.status,
-      coverImageUrl: courses.coverImageUrl,
-      price: courses.price,
-      pppEnabled: courses.pppEnabled,
-      createdAt: courses.createdAt,
-      updatedAt: courses.updatedAt,
-      instructorName: users.name,
-      instructorAvatarUrl: users.avatarUrl,
-      instructorBio: users.bio,
-      categoryName: categories.name,
-    })
-    .from(courses)
-    .innerJoin(users, eq(courses.instructorId, users.id))
-    .innerJoin(categories, eq(courses.categoryId, categories.id))
-    .where(eq(courses.id, id))
-    .get();
-
-  if (!course) return null;
-
-  const courseModules = db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, id))
-    .orderBy(modules.position)
-    .all();
-
-  const moduleIds = courseModules.map((m) => m.id);
-
-  const courseLessons =
-    moduleIds.length > 0
-      ? db
-          .select()
-          .from(lessons)
-          .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid))))
-          .orderBy(lessons.position)
-          .all()
-      : [];
-
-  return {
-    ...course,
-    modules: courseModules.map((mod) => ({
-      ...mod,
-      lessons: courseLessons.filter((l) => l.moduleId === mod.id),
-    })),
-  };
-}
-
-function getLessonCountForCourse(courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return 0;
-
-  const count = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id))))
-    .get();
-
-  return count?.count ?? 0;
-}
-
-function updateCourse(id: number, title: string, description: string) {
-  return db
-    .update(courses)
-    .set({ title, description, updatedAt: new Date().toISOString() })
-    .where(eq(courses.id, id))
-    .returning()
-    .get();
-}
-
-function updateCourseStatus(id: number, status: CourseStatus) {
-  return db
-    .update(courses)
-    .set({ status, updatedAt: new Date().toISOString() })
-    .where(eq(courses.id, id))
-    .returning()
-    .get();
-}
-
-function updateCourseSalesCopy(id: number, salesCopy: string) {
-  if (salesCopy.trim().length === 0) {
-    throw new Error("Sales copy cannot be empty");
-  }
-
-  return db
-    .update(courses)
-    .set({
-      salesCopy: markdown(salesCopy),
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(courses.id, id))
-    .returning()
-    .get();
-}
-
-function updateCoursePrice(id: number, price: number) {
-  return db
-    .update(courses)
-    .set({ price, updatedAt: new Date().toISOString() })
-    .where(eq(courses.id, id))
-    .returning()
-    .get();
-}
-
-function updateCoursePppEnabled(id: number, pppEnabled: boolean) {
-  return db
-    .update(courses)
-    .set({ pppEnabled, updatedAt: new Date().toISOString() })
-    .where(eq(courses.id, id))
-    .returning()
-    .get();
-}
-
-function getModuleById(id: number) {
-  return db.select().from(modules).where(eq(modules.id, id)).get();
-}
-
-function getModulesByCourse(courseId: number) {
-  return db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .orderBy(modules.position)
-    .all();
-}
-
-function createModule(
-  courseId: number,
-  title: string,
-  position: number | null
-) {
-  const pos =
-    position ??
-    (db
-      .select({ max: sql<number>`coalesce(max(${modules.position}), 0)` })
-      .from(modules)
-      .where(eq(modules.courseId, courseId))
-      .get()?.max ?? 0) + 1;
-
-  return db
-    .insert(modules)
-    .values({ courseId, title, position: pos })
-    .returning()
-    .get();
-}
-
-function updateModuleTitle(id: number, title: string) {
-  return db
-    .update(modules)
-    .set({ title })
-    .where(eq(modules.id, id))
-    .returning()
-    .get();
-}
-
-function deleteModule(id: number) {
-  // Delete all lessons in this module first
-  db.delete(lessons).where(eq(lessons.moduleId, id)).run();
-  return db.delete(modules).where(eq(modules.id, id)).returning().get();
-}
-
-function reorderModules(courseId: number, moduleIds: number[]) {
-  for (let i = 0; i < moduleIds.length; i++) {
-    db.update(modules)
-      .set({ position: i + 1 })
-      .where(and(eq(modules.id, moduleIds[i]), eq(modules.courseId, courseId)))
-      .run();
-  }
-  return getModulesByCourse(courseId);
-}
-
-function getLessonById(id: number) {
-  return db.select().from(lessons).where(eq(lessons.id, id)).get();
-}
-
-function getLessonsByModule(moduleId: number) {
-  return db
-    .select()
-    .from(lessons)
-    .where(eq(lessons.moduleId, moduleId))
-    .orderBy(lessons.position)
-    .all();
-}
-
-function createLesson(
-  moduleId: number,
-  title: string,
-  content: string | null,
-  videoUrl: string | null,
-  position: number | null,
-  durationMinutes: number | null
-) {
-  const pos =
-    position ??
-    (db
-      .select({ max: sql<number>`coalesce(max(${lessons.position}), 0)` })
-      .from(lessons)
-      .where(eq(lessons.moduleId, moduleId))
-      .get()?.max ?? 0) + 1;
-
-  return db
-    .insert(lessons)
-    .values({
-      moduleId,
-      title,
-      content: content === null ? null : markdown(content),
-      videoUrl,
-      position: pos,
-      durationMinutes,
-    })
-    .returning()
-    .get();
-}
-
-function updateLessonTitle(id: number, title: string) {
-  return db
-    .update(lessons)
-    .set({ title })
-    .where(eq(lessons.id, id))
-    .returning()
-    .get();
-}
-
-function deleteLesson(id: number) {
-  return db.delete(lessons).where(eq(lessons.id, id)).returning().get();
-}
-
-function reorderLessons(moduleId: number, lessonIds: number[]) {
-  for (let i = 0; i < lessonIds.length; i++) {
-    db.update(lessons)
-      .set({ position: i + 1 })
-      .where(and(eq(lessons.id, lessonIds[i]), eq(lessons.moduleId, moduleId)))
-      .run();
-  }
-  return getLessonsByModule(moduleId);
-}
-
-function moveLessonToModule(
-  lessonId: number,
-  targetModuleId: number,
-  targetPosition: number
-) {
-  const lesson = getLessonById(lessonId);
-  if (!lesson) return null;
-
-  const sourceModuleId = lesson.moduleId;
-
-  // 1. Close the gap in the source module
-  db.update(lessons)
-    .set({ position: sql`${lessons.position} - 1` })
-    .where(
-      and(
-        eq(lessons.moduleId, sourceModuleId),
-        gt(lessons.position, lesson.position)
-      )
-    )
-    .run();
-
-  // 2. Open a gap in the destination module
-  db.update(lessons)
-    .set({ position: sql`${lessons.position} + 1` })
-    .where(
-      and(
-        eq(lessons.moduleId, targetModuleId),
-        gte(lessons.position, targetPosition)
-      )
-    )
-    .run();
-
-  // 3. Move the lesson to the target module at the target position
-  return db
-    .update(lessons)
-    .set({ moduleId: targetModuleId, position: targetPosition })
-    .where(eq(lessons.id, lessonId))
-    .returning()
-    .get();
-}
-
-function getEnrollmentCountForCourse(courseId: number) {
-  const result = db
-    .select({ count: sql<number>`count(*)` })
-    .from(enrollments)
-    .where(eq(enrollments.courseId, courseId))
-    .get();
-
-  return result?.count ?? 0;
-}
-
-function getCourseEnrolledStudents(courseId: number) {
-  return db
-    .select({
-      enrollmentId: enrollments.id,
-      userId: enrollments.userId,
-      enrolledAt: enrollments.enrolledAt,
-      completedAt: enrollments.completedAt,
-    })
-    .from(enrollments)
-    .where(eq(enrollments.courseId, courseId))
-    .all();
-}
-
-function getCourseLessonIds(courseId: number): number[] {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id))))
-    .all();
-
-  return courseLessons.map((l) => l.id);
-}
-
-function calculateProgress(
-  userId: number,
-  courseId: number,
-  weightByDuration: boolean
-) {
-  const lessonIds = getCourseLessonIds(courseId);
-
-  if (lessonIds.length === 0) return 0;
-
-  if (weightByDuration) {
-    const courseLessons = db
-      .select({
-        id: lessons.id,
-        durationMinutes: lessons.durationMinutes,
-      })
-      .from(lessons)
-      .where(or(...lessonIds.map((id) => eq(lessons.id, id))))
-      .all();
-
-    const totalDuration = courseLessons.reduce(
-      (sum, l) => sum + (l.durationMinutes ?? 1),
-      0
-    );
-
-    if (totalDuration === 0) return 0;
-
-    const completed = db
-      .select()
-      .from(lessonProgress)
-      .where(
-        and(
-          eq(lessonProgress.userId, userId),
-          eq(lessonProgress.status, LessonProgressStatus.Completed),
-          or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))
-        )
-      )
-      .all();
-
-    const completedIds = new Set(completed.map((p) => p.lessonId));
-
-    const completedDuration = courseLessons
-      .filter((l) => completedIds.has(l.id))
-      .reduce((sum, l) => sum + (l.durationMinutes ?? 1), 0);
-
-    return Math.round((completedDuration / totalDuration) * 100);
-  }
-
-  const completedCount = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))
-      )
-    )
-    .get();
-
-  return Math.round(((completedCount?.count ?? 0) / lessonIds.length) * 100);
-}
-
-function getQuizByLessonId(lessonId: number) {
-  return db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).get();
-}
-
-function getBestAttempt(userId: number, quizId: number) {
-  return db
-    .select()
-    .from(quizAttempts)
-    .where(
-      and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId))
-    )
-    .orderBy(desc(quizAttempts.score))
-    .limit(1)
-    .get();
-}
-
-const courseEditorActionSchema = z.discriminatedUnion("intent", [
-  z.object({
-    intent: z.literal("update-title"),
-    title: z.string().trim().min(1, "Title cannot be empty."),
-  }),
-  z.object({
-    intent: z.literal("update-description"),
-    description: z.string().trim().min(1, "Description cannot be empty."),
-  }),
-  z.object({
-    intent: z.literal("update-status"),
-    status: z.nativeEnum(CourseStatus),
-  }),
-  z.object({ intent: z.literal("update-price"), price: z.string() }),
-  z.object({ intent: z.literal("update-ppp-enabled"), pppEnabled: z.string() }),
-  z.object({
-    intent: z.literal("add-module"),
-    title: z.string().trim().min(1, "Module title cannot be empty."),
-  }),
-  z.object({
-    intent: z.literal("rename-module"),
-    moduleId: z.coerce.number().int(),
-    title: z.string().trim().min(1, "Module title cannot be empty."),
-  }),
-  z.object({
-    intent: z.literal("delete-module"),
-    moduleId: z.coerce.number().int(),
-  }),
-  z.object({
-    intent: z.literal("add-lesson"),
-    moduleId: z.coerce.number().int(),
-    title: z.string().trim().min(1, "Lesson title cannot be empty."),
-  }),
-  z.object({
-    intent: z.literal("rename-lesson"),
-    lessonId: z.coerce.number().int(),
-    title: z.string().trim().min(1, "Lesson title cannot be empty."),
-  }),
-  z.object({
-    intent: z.literal("reorder-modules"),
-    moduleIds: z.string().min(1, "Missing module IDs."),
-  }),
-  z.object({
-    intent: z.literal("reorder-lessons"),
-    moduleId: z.coerce.number().int(),
-    lessonIds: z.string().min(1, "Missing lesson IDs."),
-  }),
-  z.object({
-    intent: z.literal("move-lesson"),
-    lessonId: z.coerce.number().int(),
-    targetModuleId: z.coerce.number().int(),
-    targetPosition: z.coerce.number().int(),
-  }),
-  z.object({
-    intent: z.literal("delete-lesson"),
-    lessonId: z.coerce.number().int(),
-  }),
-  z.object({
-    intent: z.literal("update-sales-copy"),
-    salesCopy: z.string().trim().min(1, "Sales copy cannot be empty."),
-  }),
-]);
 
 export function meta({ loaderData }: Route.MetaArgs) {
   const title = loaderData?.course?.title ?? "Edit Course";
@@ -553,64 +45,18 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     courseId: params.courseId,
   });
 
-  const course = getCourseWithDetails(courseId);
+  const course = courseEditor.getCourseWithDetails(courseId);
   if (!course) {
     throw data("Course not found.", { status: 404 });
   }
 
-  const lessonCount = getLessonCountForCourse(courseId);
-  const enrollmentCount = getEnrollmentCountForCourse(courseId);
+  const lessonCount = courseEditor.getLessonCountForCourse(courseId);
+  const enrollmentCount = courseEditor.getEnrollmentCountForCourse(courseId);
 
-  // Student roster data
-  const enrolledStudents = getCourseEnrolledStudents(courseId);
-
-  // Gather all lessons from the course modules and find which have quizzes
-  const allCourseLessons = course.modules.flatMap((mod) => mod.lessons);
-  const lessonQuizzes: {
-    lessonId: number;
-    lessonTitle: string;
-    quizId: number;
-    quizTitle: string;
-  }[] = [];
-  for (const lesson of allCourseLessons) {
-    const quiz = getQuizByLessonId(lesson.id);
-    if (quiz) {
-      lessonQuizzes.push({
-        lessonId: lesson.id,
-        lessonTitle: lesson.title,
-        quizId: quiz.id,
-        quizTitle: quiz.title,
-      });
-    }
-  }
-
-  const students = enrolledStudents.map((enrollment) => {
-    const studentUser = getUserById(enrollment.userId);
-    const progress = calculateProgress(enrollment.userId, courseId, false);
-
-    const quizScores = lessonQuizzes.map((lq) => {
-      const bestAttempt = getBestAttempt(enrollment.userId, lq.quizId);
-      return {
-        quizId: lq.quizId,
-        quizTitle: lq.quizTitle,
-        lessonTitle: lq.lessonTitle,
-        bestScore: bestAttempt?.score ?? null,
-        passed: bestAttempt?.passed ?? null,
-      };
-    });
-
-    return {
-      userId: enrollment.userId,
-      name: studentUser?.name ?? "Unknown",
-      email: studentUser?.email ?? "",
-      enrolledAt: enrollment.enrolledAt,
-      completedAt: enrollment.completedAt,
-      progress,
-      quizScores,
-    };
-  });
-
-  const quizCount = lessonQuizzes.length;
+  const { students, quizCount } = courseEditor.getStudentRoster(
+    courseId,
+    course.modules.flatMap((mod) => mod.lessons)
+  );
 
   return { course, lessonCount, enrollmentCount, students, quizCount };
 }
@@ -636,17 +82,17 @@ export async function action({ params, request }: Route.ActionArgs) {
   const { intent } = parsed.data;
 
   if (intent === "update-title") {
-    updateCourse(courseId, parsed.data.title, course.description);
+    courseEditor.updateCourse(courseId, parsed.data.title, course.description);
     return { success: true, field: "title" };
   }
 
   if (intent === "update-description") {
-    updateCourse(courseId, course.title, parsed.data.description);
+    courseEditor.updateCourse(courseId, course.title, parsed.data.description);
     return { success: true, field: "description" };
   }
 
   if (intent === "update-status") {
-    updateCourseStatus(courseId, parsed.data.status);
+    courseEditor.updateCourseStatus(courseId, parsed.data.status);
     return { success: true, field: "status" };
   }
 
@@ -662,86 +108,86 @@ export async function action({ params, request }: Route.ActionArgs) {
       return data({ error: "Price cannot exceed $9,999.99." }, { status: 400 });
     }
     const priceCents = Math.round(priceDollars * 100);
-    updateCoursePrice(courseId, priceCents);
+    courseEditor.updateCoursePrice(courseId, priceCents);
     return { success: true, field: "price" };
   }
 
   if (intent === "update-ppp-enabled") {
     const pppEnabled = parsed.data.pppEnabled === "true";
-    updateCoursePppEnabled(courseId, pppEnabled);
+    courseEditor.updateCoursePppEnabled(courseId, pppEnabled);
     return { success: true, field: "ppp-enabled" };
   }
 
   if (intent === "add-module") {
-    createModule(courseId, parsed.data.title, null);
+    courseEditor.createModule(courseId, parsed.data.title, null);
     return { success: true, field: "module" };
   }
 
   if (intent === "rename-module") {
     const { moduleId, title } = parsed.data;
-    const mod = getModuleById(moduleId);
+    const mod = courseEditor.getModuleById(moduleId);
     if (!mod || mod.courseId !== courseId) {
       return data(
         { error: "Module not found in this course." },
         { status: 404 }
       );
     }
-    updateModuleTitle(moduleId, title);
+    courseEditor.updateModuleTitle(moduleId, title);
     return { success: true, field: "module" };
   }
 
   if (intent === "delete-module") {
     const { moduleId } = parsed.data;
-    const mod = getModuleById(moduleId);
+    const mod = courseEditor.getModuleById(moduleId);
     if (!mod || mod.courseId !== courseId) {
       return data(
         { error: "Module not found in this course." },
         { status: 404 }
       );
     }
-    deleteModule(moduleId);
+    courseEditor.deleteModule(moduleId);
     return { success: true, field: "module" };
   }
 
   if (intent === "add-lesson") {
     const { moduleId, title } = parsed.data;
-    const mod = getModuleById(moduleId);
+    const mod = courseEditor.getModuleById(moduleId);
     if (!mod || mod.courseId !== courseId) {
       return data(
         { error: "Module not found in this course." },
         { status: 404 }
       );
     }
-    createLesson(moduleId, title, null, null, null, null);
+    courseEditor.createLesson(moduleId, title, null, null, null, null);
     return { success: true, field: "lesson" };
   }
 
   if (intent === "rename-lesson") {
     const { lessonId, title } = parsed.data;
-    const lesson = getLessonById(lessonId);
+    const lesson = courseEditor.getLessonById(lessonId);
     if (!lesson) {
       return data({ error: "Lesson not found." }, { status: 404 });
     }
-    const mod = getModuleById(lesson.moduleId);
+    const mod = courseEditor.getModuleById(lesson.moduleId);
     if (!mod || mod.courseId !== courseId) {
       return data(
         { error: "Lesson not found in this course." },
         { status: 404 }
       );
     }
-    updateLessonTitle(lessonId, title);
+    courseEditor.updateLessonTitle(lessonId, title);
     return { success: true, field: "lesson" };
   }
 
   if (intent === "reorder-modules") {
     const moduleIds: number[] = JSON.parse(parsed.data.moduleIds);
-    reorderModules(courseId, moduleIds);
+    courseEditor.reorderModules(courseId, moduleIds);
     return { success: true, field: "module-reorder" };
   }
 
   if (intent === "reorder-lessons") {
     const { moduleId, lessonIds: lessonIdsJson } = parsed.data;
-    const mod = getModuleById(moduleId);
+    const mod = courseEditor.getModuleById(moduleId);
     if (!mod || mod.courseId !== courseId) {
       return data(
         { error: "Module not found in this course." },
@@ -749,676 +195,57 @@ export async function action({ params, request }: Route.ActionArgs) {
       );
     }
     const lessonIds: number[] = JSON.parse(lessonIdsJson);
-    reorderLessons(moduleId, lessonIds);
+    courseEditor.reorderLessons(moduleId, lessonIds);
     return { success: true, field: "lesson-reorder" };
   }
 
   if (intent === "move-lesson") {
     const { lessonId, targetModuleId, targetPosition } = parsed.data;
-    const lesson = getLessonById(lessonId);
+    const lesson = courseEditor.getLessonById(lessonId);
     if (!lesson) {
       return data({ error: "Lesson not found." }, { status: 404 });
     }
-    const sourceMod = getModuleById(lesson.moduleId);
+    const sourceMod = courseEditor.getModuleById(lesson.moduleId);
     if (!sourceMod || sourceMod.courseId !== courseId) {
       return data(
         { error: "Lesson not found in this course." },
         { status: 404 }
       );
     }
-    const targetMod = getModuleById(targetModuleId);
+    const targetMod = courseEditor.getModuleById(targetModuleId);
     if (!targetMod || targetMod.courseId !== courseId) {
       return data(
         { error: "Target module not found in this course." },
         { status: 404 }
       );
     }
-    moveLessonToModule(lessonId, targetModuleId, targetPosition);
+    courseEditor.moveLessonToModule(lessonId, targetModuleId, targetPosition);
     return { success: true, field: "lesson-move" };
   }
 
   if (intent === "delete-lesson") {
     const { lessonId } = parsed.data;
-    const lesson = getLessonById(lessonId);
+    const lesson = courseEditor.getLessonById(lessonId);
     if (!lesson) {
       return data({ error: "Lesson not found." }, { status: 404 });
     }
-    const mod = getModuleById(lesson.moduleId);
+    const mod = courseEditor.getModuleById(lesson.moduleId);
     if (!mod || mod.courseId !== courseId) {
       return data(
         { error: "Lesson not found in this course." },
         { status: 404 }
       );
     }
-    deleteLesson(lessonId);
+    courseEditor.deleteLesson(lessonId);
     return { success: true, field: "lesson" };
   }
 
   if (intent === "update-sales-copy") {
-    updateCourseSalesCopy(courseId, parsed.data.salesCopy);
+    courseEditor.updateCourseSalesCopy(courseId, parsed.data.salesCopy);
     return { success: true, field: "sales-copy" };
   }
 
   throw data("Invalid action.", { status: 400 });
-}
-
-function InlineEditableTitle({ value }: { value: string; courseId: number }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fetcher = useFetcher();
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.success) {
-      toast.success("Title saved.");
-    }
-    if (fetcher.state === "idle" && fetcher.data?.error) {
-      toast.error(fetcher.data.error);
-    }
-  }, [fetcher.state, fetcher.data]);
-
-  // Update local state when server responds with new data
-  useEffect(() => {
-    setEditValue(value);
-  }, [value]);
-
-  function handleSave() {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== value) {
-      fetcher.submit(
-        { intent: "update-title", title: trimmed },
-        { method: "post" }
-      );
-    }
-    setIsEditing(false);
-  }
-
-  function handleCancel() {
-    setEditValue(value);
-    setIsEditing(false);
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSave();
-    } else if (event.key === "Escape") {
-      handleCancel();
-    }
-  }
-
-  if (isEditing) {
-    return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={editValue}
-        onChange={(event) => setEditValue(event.target.value)}
-        onBlur={handleSave}
-        onKeyDown={handleKeyDown}
-        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-3xl font-bold outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-      />
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setIsEditing(true)}
-      className="group flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left hover:bg-muted"
-    >
-      <h1 className="flex-1 text-3xl font-bold">{value}</h1>
-      <Pencil className="mt-2 size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-    </button>
-  );
-}
-
-function InlineEditableDescription({
-  value,
-}: {
-  value: string;
-  courseId: number;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fetcher = useFetcher();
-
-  useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.select();
-      // Auto-resize
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height =
-        textareaRef.current.scrollHeight + "px";
-    }
-  }, [isEditing]);
-
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.success) {
-      toast.success("Description saved.");
-    }
-    if (fetcher.state === "idle" && fetcher.data?.error) {
-      toast.error(fetcher.data.error);
-    }
-  }, [fetcher.state, fetcher.data]);
-
-  useEffect(() => {
-    setEditValue(value);
-  }, [value]);
-
-  function handleSave() {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== value) {
-      fetcher.submit(
-        { intent: "update-description", description: trimmed },
-        { method: "post" }
-      );
-    }
-    setIsEditing(false);
-  }
-
-  function handleCancel() {
-    setEditValue(value);
-    setIsEditing(false);
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      handleSave();
-    } else if (event.key === "Escape") {
-      handleCancel();
-    }
-  }
-
-  if (isEditing) {
-    return (
-      <div>
-        <textarea
-          ref={textareaRef}
-          value={editValue}
-          onChange={(event) => {
-            setEditValue(event.target.value);
-            event.target.style.height = "auto";
-            event.target.style.height = event.target.scrollHeight + "px";
-          }}
-          onBlur={handleSave}
-          onKeyDown={handleKeyDown}
-          rows={3}
-          className="w-full resize-none rounded-md border border-input bg-background px-3 py-1.5 text-sm text-muted-foreground outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <p className="mt-1 text-xs text-muted-foreground">
-          Press Ctrl+Enter to save, Escape to cancel
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setIsEditing(true)}
-      className="group flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left hover:bg-muted"
-    >
-      <p className="flex-1 text-sm text-muted-foreground">{value}</p>
-      <Pencil className="mt-0.5 size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-    </button>
-  );
-}
-
-function InlineEditableModuleTitle({
-  value,
-  moduleId,
-}: {
-  value: string;
-  moduleId: number;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fetcher = useFetcher();
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  useEffect(() => {
-    setEditValue(value);
-  }, [value]);
-
-  function handleSave() {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== value) {
-      fetcher.submit(
-        { intent: "rename-module", moduleId: String(moduleId), title: trimmed },
-        { method: "post" }
-      );
-    }
-    setIsEditing(false);
-  }
-
-  function handleCancel() {
-    setEditValue(value);
-    setIsEditing(false);
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSave();
-    } else if (event.key === "Escape") {
-      handleCancel();
-    }
-  }
-
-  if (isEditing) {
-    return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={editValue}
-        onChange={(event) => setEditValue(event.target.value)}
-        onBlur={handleSave}
-        onKeyDown={handleKeyDown}
-        className="w-full rounded-md border border-input bg-background px-2 py-1 text-base font-semibold outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-      />
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setIsEditing(true)}
-      className="group flex items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-muted"
-    >
-      <h3 className="font-semibold">{value}</h3>
-      <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-    </button>
-  );
-}
-
-function DeleteModuleButton({
-  moduleId,
-  moduleTitle,
-}: {
-  moduleId: number;
-  moduleTitle: string;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const fetcher = useFetcher();
-
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.success) {
-      toast.success("Module deleted.");
-    }
-    if (fetcher.state === "idle" && fetcher.data?.error) {
-      toast.error(fetcher.data.error);
-    }
-  }, [fetcher.state, fetcher.data]);
-
-  if (confirming) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-destructive">
-          Delete "{moduleTitle}"?
-        </span>
-        <Button
-          variant="destructive"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => {
-            fetcher.submit(
-              { intent: "delete-module", moduleId: String(moduleId) },
-              { method: "post" }
-            );
-            setConfirming(false);
-          }}
-        >
-          Confirm
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => setConfirming(false)}
-        >
-          Cancel
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-      onClick={() => setConfirming(true)}
-    >
-      <Trash2 className="size-4" />
-    </Button>
-  );
-}
-
-function AddModuleForm() {
-  const [isAdding, setIsAdding] = useState(false);
-  const [title, setTitle] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fetcher = useFetcher();
-
-  useEffect(() => {
-    if (isAdding && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isAdding]);
-
-  // Reset form after successful submission
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.success) {
-      setTitle("");
-      setIsAdding(false);
-      toast.success("Module added.");
-    }
-    if (fetcher.state === "idle" && fetcher.data?.error) {
-      toast.error(fetcher.data.error);
-    }
-  }, [fetcher.state, fetcher.data]);
-
-  function handleSubmit() {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    fetcher.submit(
-      { intent: "add-module", title: trimmed },
-      { method: "post" }
-    );
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSubmit();
-    } else if (event.key === "Escape") {
-      setTitle("");
-      setIsAdding(false);
-    }
-  }
-
-  if (!isAdding) {
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setIsAdding(true)}
-        className="mt-4"
-      >
-        <Plus className="mr-1.5 size-4" />
-        Add Module
-      </Button>
-    );
-  }
-
-  return (
-    <div className="mt-4 flex items-center gap-2">
-      <Input
-        ref={inputRef}
-        type="text"
-        placeholder="Module title..."
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        onKeyDown={handleKeyDown}
-        className="max-w-xs"
-      />
-      <Button size="sm" onClick={handleSubmit} disabled={!title.trim()}>
-        Add
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          setTitle("");
-          setIsAdding(false);
-        }}
-      >
-        Cancel
-      </Button>
-    </div>
-  );
-}
-
-function InlineEditableLessonTitle({
-  value,
-  lessonId,
-}: {
-  value: string;
-  lessonId: number;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fetcher = useFetcher();
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  useEffect(() => {
-    setEditValue(value);
-  }, [value]);
-
-  function handleSave() {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== value) {
-      fetcher.submit(
-        { intent: "rename-lesson", lessonId: String(lessonId), title: trimmed },
-        { method: "post" }
-      );
-    }
-    setIsEditing(false);
-  }
-
-  function handleCancel() {
-    setEditValue(value);
-    setIsEditing(false);
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSave();
-    } else if (event.key === "Escape") {
-      handleCancel();
-    }
-  }
-
-  if (isEditing) {
-    return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={editValue}
-        onChange={(event) => setEditValue(event.target.value)}
-        onBlur={handleSave}
-        onKeyDown={handleKeyDown}
-        className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-      />
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setIsEditing(true)}
-      className="group flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-sm hover:bg-muted"
-    >
-      <span className="flex-1">{value}</span>
-      <Pencil className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-    </button>
-  );
-}
-
-function DeleteLessonButton({
-  lessonId,
-}: {
-  lessonId: number;
-  lessonTitle: string;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const fetcher = useFetcher();
-
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.success) {
-      toast.success("Lesson deleted.");
-    }
-    if (fetcher.state === "idle" && fetcher.data?.error) {
-      toast.error(fetcher.data.error);
-    }
-  }, [fetcher.state, fetcher.data]);
-
-  if (confirming) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-destructive">Delete?</span>
-        <Button
-          variant="destructive"
-          size="sm"
-          className="h-6 text-xs"
-          onClick={() => {
-            fetcher.submit(
-              { intent: "delete-lesson", lessonId: String(lessonId) },
-              { method: "post" }
-            );
-            setConfirming(false);
-          }}
-        >
-          Confirm
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 text-xs"
-          onClick={() => setConfirming(false)}
-        >
-          Cancel
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-      onClick={() => setConfirming(true)}
-    >
-      <Trash2 className="size-3.5" />
-    </Button>
-  );
-}
-
-function AddLessonForm({ moduleId }: { moduleId: number }) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [title, setTitle] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fetcher = useFetcher();
-
-  useEffect(() => {
-    if (isAdding && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isAdding]);
-
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.success) {
-      setTitle("");
-      setIsAdding(false);
-      toast.success("Lesson added.");
-    }
-    if (fetcher.state === "idle" && fetcher.data?.error) {
-      toast.error(fetcher.data.error);
-    }
-  }, [fetcher.state, fetcher.data]);
-
-  function handleSubmit() {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    fetcher.submit(
-      { intent: "add-lesson", moduleId: String(moduleId), title: trimmed },
-      { method: "post" }
-    );
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSubmit();
-    } else if (event.key === "Escape") {
-      setTitle("");
-      setIsAdding(false);
-    }
-  }
-
-  if (!isAdding) {
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setIsAdding(true)}
-        className="mt-2 text-muted-foreground"
-      >
-        <Plus className="mr-1 size-3.5" />
-        Add Lesson
-      </Button>
-    );
-  }
-
-  return (
-    <div className="mt-2 flex items-center gap-2">
-      <Input
-        ref={inputRef}
-        type="text"
-        placeholder="Lesson title..."
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        onKeyDown={handleKeyDown}
-        className="max-w-xs text-sm"
-      />
-      <Button
-        size="sm"
-        className="h-8"
-        onClick={handleSubmit}
-        disabled={!title.trim()}
-      >
-        Add
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8"
-        onClick={() => {
-          setTitle("");
-          setIsAdding(false);
-        }}
-      >
-        Cancel
-      </Button>
-    </div>
-  );
 }
 
 export default function InstructorCourseEditor({
@@ -1511,77 +338,6 @@ export default function InstructorCourseEditor({
     );
   }
 
-  function handleDragEnd(result: DropResult) {
-    if (!result.destination) return;
-    if (
-      result.source.droppableId === result.destination.droppableId &&
-      result.source.index === result.destination.index
-    ) {
-      return;
-    }
-
-    if (result.type === "module") {
-      const reordered = Array.from(course.modules);
-      const [moved] = reordered.splice(result.source.index, 1);
-      reordered.splice(result.destination.index, 0, moved);
-
-      const moduleIds = reordered.map((m) => m.id);
-      reorderFetcher.submit(
-        { intent: "reorder-modules", moduleIds: JSON.stringify(moduleIds) },
-        { method: "post" }
-      );
-    } else if (result.type === "lesson") {
-      const sourceModuleId = parseInt(
-        result.source.droppableId.replace("lessons-", ""),
-        10
-      );
-      const destModuleId = parseInt(
-        result.destination.droppableId.replace("lessons-", ""),
-        10
-      );
-
-      if (sourceModuleId === destModuleId) {
-        // Reorder within the same module
-        const mod = course.modules.find((m) => m.id === sourceModuleId);
-        if (!mod) return;
-
-        const reordered = Array.from(mod.lessons);
-        const [moved] = reordered.splice(result.source.index, 1);
-        reordered.splice(result.destination.index, 0, moved);
-
-        const lessonIds = reordered.map((l) => l.id);
-        lessonReorderFetcher.submit(
-          {
-            intent: "reorder-lessons",
-            moduleId: String(sourceModuleId),
-            lessonIds: JSON.stringify(lessonIds),
-          },
-          { method: "post" }
-        );
-      } else {
-        // Move lesson to a different module
-        const sourceMod = course.modules.find((m) => m.id === sourceModuleId);
-        if (!sourceMod) return;
-
-        const lesson = sourceMod.lessons[result.source.index];
-        if (!lesson) return;
-
-        // Target position is 1-based (destination index + 1)
-        const targetPosition = result.destination.index + 1;
-
-        lessonReorderFetcher.submit(
-          {
-            intent: "move-lesson",
-            lessonId: String(lesson.id),
-            targetModuleId: String(destModuleId),
-            targetPosition: String(targetPosition),
-          },
-          { method: "post" }
-        );
-      }
-    }
-  }
-
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-8">
       {/* Breadcrumb */}
@@ -1661,491 +417,40 @@ export default function InstructorCourseEditor({
               </CardContent>
             </Card>
           ) : (
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="modules" type="module">
-                {(provided) => (
-                  <div
-                    className="space-y-4"
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                  >
-                    {course.modules.map((mod, index) => (
-                      <Draggable
-                        key={mod.id}
-                        draggableId={String(mod.id)}
-                        index={index}
-                      >
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                          >
-                            <Card
-                              className={
-                                snapshot.isDragging
-                                  ? "shadow-lg ring-2 ring-primary/50"
-                                  : ""
-                              }
-                            >
-                              <CardHeader>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2 flex-1">
-                                    <div
-                                      {...provided.dragHandleProps}
-                                      className="cursor-grab active:cursor-grabbing rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                    >
-                                      <GripVertical className="size-5" />
-                                    </div>
-                                    <div className="flex-1">
-                                      <InlineEditableModuleTitle
-                                        value={mod.title}
-                                        moduleId={mod.id}
-                                      />
-                                      <p className="mt-1 px-2 text-sm text-muted-foreground">
-                                        {mod.lessons.length}{" "}
-                                        {mod.lessons.length === 1
-                                          ? "lesson"
-                                          : "lessons"}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <DeleteModuleButton
-                                    moduleId={mod.id}
-                                    moduleTitle={mod.title}
-                                  />
-                                </div>
-                              </CardHeader>
-                              <CardContent>
-                                {mod.lessons.length === 0 ? (
-                                  <p className="px-3 py-2 text-sm text-muted-foreground">
-                                    No lessons yet.
-                                  </p>
-                                ) : (
-                                  <Droppable
-                                    droppableId={`lessons-${mod.id}`}
-                                    type="lesson"
-                                  >
-                                    {(lessonDropProvided) => (
-                                      <ul
-                                        className="space-y-1"
-                                        ref={lessonDropProvided.innerRef}
-                                        {...lessonDropProvided.droppableProps}
-                                      >
-                                        {mod.lessons.map(
-                                          (lesson, lessonIndex) => (
-                                            <Draggable
-                                              key={lesson.id}
-                                              draggableId={`lesson-${lesson.id}`}
-                                              index={lessonIndex}
-                                            >
-                                              {(
-                                                lessonProvided,
-                                                lessonSnapshot
-                                              ) => (
-                                                <li
-                                                  ref={lessonProvided.innerRef}
-                                                  {...lessonProvided.draggableProps}
-                                                >
-                                                  <div
-                                                    className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm${
-                                                      lessonSnapshot.isDragging
-                                                        ? " bg-muted shadow-md ring-1 ring-primary/30"
-                                                        : ""
-                                                    }`}
-                                                  >
-                                                    <div
-                                                      {...lessonProvided.dragHandleProps}
-                                                      className="cursor-grab active:cursor-grabbing rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                                    >
-                                                      <GripVertical className="size-4" />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                      <InlineEditableLessonTitle
-                                                        value={lesson.title}
-                                                        lessonId={lesson.id}
-                                                      />
-                                                    </div>
-                                                    {lesson.durationMinutes && (
-                                                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                        <Clock className="size-3" />
-                                                        {formatDuration(
-                                                          lesson.durationMinutes,
-                                                          true,
-                                                          false,
-                                                          false
-                                                        )}
-                                                      </span>
-                                                    )}
-                                                    <Link
-                                                      to={`/courses/${course.slug}/lessons/${lesson.id}`}
-                                                      title="View lesson"
-                                                    >
-                                                      <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                                                      >
-                                                        <Eye className="size-3.5" />
-                                                      </Button>
-                                                    </Link>
-                                                    <Link
-                                                      to={`/instructor/${course.id}/lessons/${lesson.id}`}
-                                                      title="Edit lesson"
-                                                    >
-                                                      <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                                                      >
-                                                        <FileEdit className="size-3.5" />
-                                                      </Button>
-                                                    </Link>
-                                                    <DeleteLessonButton
-                                                      lessonId={lesson.id}
-                                                      lessonTitle={lesson.title}
-                                                    />
-                                                  </div>
-                                                </li>
-                                              )}
-                                            </Draggable>
-                                          )
-                                        )}
-                                        {lessonDropProvided.placeholder}
-                                      </ul>
-                                    )}
-                                  </Droppable>
-                                )}
-                                <AddLessonForm moduleId={mod.id} />
-                              </CardContent>
-                            </Card>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
+            <CourseOutline
+              course={course}
+              reorderFetcher={reorderFetcher}
+              lessonReorderFetcher={lessonReorderFetcher}
+            />
           )}
           <AddModuleForm />
         </TabsContent>
 
         {/* Settings Tab */}
         <TabsContent value="settings" className="mt-6">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <h2 className="text-lg font-semibold">Course Status</h2>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Status:</span>
-                  <Select
-                    value={course.status}
-                    onValueChange={handleStatusChange}
-                  >
-                    <SelectTrigger className="w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={CourseStatus.Draft}>Draft</SelectItem>
-                      <SelectItem value={CourseStatus.Published}>
-                        Published
-                      </SelectItem>
-                      <SelectItem value={CourseStatus.Archived}>
-                        Archived
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <h2 className="text-lg font-semibold">Pricing</h2>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Price:</span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm text-muted-foreground">$</span>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="9999.99"
-                        step="0.01"
-                        defaultValue={(course.price / 100).toFixed(2)}
-                        className="w-28"
-                        onBlur={(event) => {
-                          const value = parseFloat(event.target.value);
-                          if (
-                            !isNaN(value) &&
-                            value >= 0 &&
-                            Math.round(value * 100) !== course.price
-                          ) {
-                            priceFetcher.submit(
-                              {
-                                intent: "update-price",
-                                price: event.target.value,
-                              },
-                              { method: "post" }
-                            );
-                          }
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            (event.target as HTMLInputElement).blur();
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div
-                    className="flex items-center gap-2"
-                    title="Purchasing Power Parity: applies location-based discounts for students in lower-income countries"
-                  >
-                    <Globe className="size-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">PPP:</span>
-                    <button
-                      type="button"
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        course.pppEnabled ? "bg-primary" : "bg-muted"
-                      }`}
-                      onClick={() => {
-                        pppFetcher.submit(
-                          {
-                            intent: "update-ppp-enabled",
-                            pppEnabled: String(!course.pppEnabled),
-                          },
-                          { method: "post" }
-                        );
-                      }}
-                    >
-                      <span
-                        className={`inline-block size-4 transform rounded-full bg-white transition-transform ${
-                          course.pppEnabled ? "translate-x-6" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
-                    <span className="text-xs text-muted-foreground">
-                      {course.pppEnabled ? "On" : "Off"}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <h2 className="text-lg font-semibold">Links</h2>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-3">
-                  <Link to={`/courses/${course.slug}`}>
-                    <Button variant="outline" size="sm">
-                      <Eye className="mr-1.5 size-4" />
-                      View Public Page
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <CourseSettingsPanel
+            course={course}
+            handleStatusChange={handleStatusChange}
+            priceFetcher={priceFetcher}
+            pppFetcher={pppFetcher}
+          />
         </TabsContent>
 
         {/* Sales Copy Tab */}
         <TabsContent value="sales-copy" className="mt-6">
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Sales Copy</h2>
-              <p className="text-sm text-muted-foreground">
-                Write the course sales copy in Markdown. This is shown on the
-                public course page. Press Ctrl+S to format and save.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <MonacoMarkdownEditor
-                value={salesCopy}
-                onChange={setSalesCopy}
-                onSave={handleSalesCopySave}
-              />
-              <div className="mt-4 flex items-center gap-4">
-                <Button
-                  onClick={handleSalesCopySave}
-                  disabled={
-                    !salesCopyHasChanges ||
-                    salesCopyIsEmpty ||
-                    salesCopyFetcher.state !== "idle"
-                  }
-                >
-                  <Save className="mr-1.5 size-4" />
-                  {salesCopyFetcher.state !== "idle"
-                    ? "Saving..."
-                    : "Save Sales Copy"}
-                </Button>
-                {salesCopyIsEmpty ? (
-                  <span className="text-sm text-destructive">
-                    Sales copy cannot be empty.
-                  </span>
-                ) : (
-                  salesCopyHasChanges && (
-                    <span className="text-sm text-muted-foreground">
-                      You have unsaved changes.
-                    </span>
-                  )
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <CourseSalesCopyPanel
+            salesCopy={salesCopy}
+            setSalesCopy={setSalesCopy}
+            handleSalesCopySave={handleSalesCopySave}
+            salesCopyHasChanges={salesCopyHasChanges}
+            salesCopyIsEmpty={salesCopyIsEmpty}
+            salesCopyFetcher={salesCopyFetcher}
+          />
         </TabsContent>
 
         {/* Students Tab */}
         <TabsContent value="students" className="mt-6">
-          <div className="mb-4 flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <Users className="size-4" />
-              {students.length} {students.length === 1 ? "student" : "students"}{" "}
-              enrolled
-            </span>
-            {quizCount > 0 && (
-              <span className="flex items-center gap-1.5">
-                <Award className="size-4" />
-                {quizCount} {quizCount === 1 ? "quiz" : "quizzes"}
-              </span>
-            )}
-          </div>
-
-          {students.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Users className="mx-auto mb-3 size-8 text-muted-foreground/50" />
-                <p className="text-muted-foreground">
-                  No students enrolled in this course yet.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/50">
-                        <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Student
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Enrolled
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Progress
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Status
-                        </th>
-                        {quizCount > 0 && (
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                            Quiz Scores
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students.map((student) => {
-                        const enrolledDate = new Date(
-                          student.enrolledAt
-                        ).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        });
-
-                        return (
-                          <tr
-                            key={student.userId}
-                            className="border-b border-border last:border-0"
-                          >
-                            <td className="px-4 py-3">
-                              <div>
-                                <p className="text-sm font-medium">
-                                  {student.name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {student.email}
-                                </p>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-muted-foreground">
-                              {enrolledDate}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <div className="h-2 w-24 rounded-full bg-muted">
-                                  <div
-                                    className="h-2 rounded-full bg-primary transition-all"
-                                    style={{ width: `${student.progress}%` }}
-                                  />
-                                </div>
-                                <span className="text-sm font-medium">
-                                  {student.progress}%
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              {student.completedAt ? (
-                                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                  Completed
-                                </span>
-                              ) : student.progress > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                  In Progress
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
-                                  Not Started
-                                </span>
-                              )}
-                            </td>
-                            {quizCount > 0 && (
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-2">
-                                  {student.quizScores.map((qs) => (
-                                    <div
-                                      key={qs.quizId}
-                                      className="flex items-center gap-1"
-                                      title={`${qs.quizTitle} (${qs.lessonTitle})`}
-                                    >
-                                      {qs.bestScore === null ? (
-                                        <span className="text-xs text-muted-foreground">
-                                          —
-                                        </span>
-                                      ) : qs.passed ? (
-                                        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                          {Math.round(qs.bestScore * 100)}%
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                                          {Math.round(qs.bestScore * 100)}%
-                                        </span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <CourseStudentsTable students={students} quizCount={quizCount} />
         </TabsContent>
       </Tabs>
     </div>
