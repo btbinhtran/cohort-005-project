@@ -8,6 +8,10 @@ import {
 } from "~/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 
+export function getQuizById(quizId: number) {
+  return db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
+}
+
 export function getQuizByLessonId(lessonId: number) {
   return db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).get();
 }
