@@ -132,7 +132,6 @@
       "files": [
         "app/lib/comments.server.test.ts",
         "app/routes/admin.categories.tsx",
-        "app/routes/courses.$slug.lessons.$lessonId.tsx",
         "app/routes/courses.$slug.purchase.tsx",
         "app/routes/courses.$slug.tsx"
       ],
@@ -150,6 +149,10 @@
         "app/components/course-sales-copy-panel.tsx",
         "app/components/course-settings-panel.tsx",
         "app/components/course-students-table.tsx",
+        "app/components/lesson/curriculum-sidebar.tsx",
+        "app/components/lesson/lesson-pager.tsx",
+        "app/components/lesson/locked-lesson.tsx",
+        "app/components/lesson/quiz-section.tsx",
         "app/components/dev-ui.tsx",
         "app/components/instructor-analytics/course-progress.tsx",
         "app/components/instructor-analytics/course-tab.tsx",
@@ -182,6 +185,10 @@
         "app/modules/instructor-analytics/lib/course-progress.ts",
         "app/modules/instructor-analytics/lib/instructor-analytics.ts",
         "app/modules/instructor-analytics/lib/quiz-pass-rates.ts",
+        "app/modules/lesson-viewer/lib/course-outline.ts",
+        "app/modules/lesson-viewer/lib/lesson-page.ts",
+        "app/modules/lesson-viewer/lib/quiz.ts",
+        "app/modules/lesson-viewer/lib/thread.ts",
         "app/routes/admin.categories.tsx",
         "app/routes/admin.courses.tsx",
         "app/routes/admin.refunds.tsx",
@@ -281,6 +288,7 @@
     },
     {
       "files": [
+        "app/modules/lesson-viewer/lib/lesson-page.ts",
         "app/routes/courses.$slug.lessons.$lessonId.tsx",
         "request-logger/render/gemini.ts",
         "request-logger/render/openai.ts"
