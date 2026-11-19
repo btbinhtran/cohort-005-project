@@ -135,8 +135,7 @@
         "app/routes/instructor.$courseId.tsx",
         "request-logger/agents.test.ts",
         "request-logger/agents.ts",
-        "request-logger/render.ts",
-        "scripts/seed.ts"
+        "request-logger/render.ts"
       ],
       "rules": {
         "max-lines": "off"
@@ -203,7 +202,22 @@
         "request-logger/config.ts",
         "request-logger/proxy.ts",
         "request-logger/render.ts",
-        "scripts/seed.ts"
+        "scripts/seed.ts",
+        "scripts/seed/comments.ts",
+        "scripts/seed/courses/data-visualisation.ts",
+        "scripts/seed/courses/design-systems.ts",
+        "scripts/seed/courses/docker-kubernetes.ts",
+        "scripts/seed/courses/rest-apis.ts",
+        "scripts/seed/courses/typescript.ts",
+        "scripts/seed/enrollments-and-ratings.ts",
+        "scripts/seed/generated-history.ts",
+        "scripts/seed/lesson-progress.ts",
+        "scripts/seed/purchases-and-teams.ts",
+        "scripts/seed/quiz-attempts.ts",
+        "scripts/seed/quizzes.ts",
+        "scripts/seed/refund-requests.ts",
+        "scripts/seed/team-licences.ts",
+        "scripts/seed/users.ts"
       ],
       "rules": {
         "max-lines-per-function": "off"
@@ -240,7 +254,9 @@
         "app/routes/instructor.new.tsx",
         "request-logger/agents.ts",
         "scripts/push-knock-workflows.ts",
-        "scripts/seed.ts"
+        "scripts/seed/quiz-attempts.ts",
+        "scripts/seed/team-licences.ts",
+        "scripts/seed/watch-events.ts"
       ],
       "rules": {
         "max-params": "off"
