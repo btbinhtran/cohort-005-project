@@ -22,16 +22,18 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { styleText } from "node:util";
 import { renderMarkdown } from "./render";
-import {
-  resolveChoice,
-  shouldLogRequest,
-  type AgentChoice,
-  type CustomTarget,
-  type ResolvedTarget,
-} from "./agents";
+import { resolveChoice, shouldLogRequest } from "./agents";
+import type { AgentChoice, CustomTarget, ResolvedTarget } from "./agents/types";
 import { askChoice, clearChoice, loadChoice, saveChoice } from "./config";
+import { bold, dim, printBanner, wrap } from "./proxy/banner";
+import {
+  BURST_THRESHOLD,
+  BURST_WINDOW_MS,
+  burstKey,
+  trackBurst,
+  type BurstState,
+} from "./proxy/burst";
 
 /**
  * A resolved target the proxy can actually route to and render: a catalogue
@@ -39,7 +41,7 @@ import { askChoice, clearChoice, loadChoice, saveChoice } from "./config";
  * interchangeably everywhere below except upstreamConnection, which is the
  * one place their upstream host is found differently.
  */
-type ProxyTarget = ResolvedTarget | CustomTarget;
+export type ProxyTarget = ResolvedTarget | CustomTarget;
 
 const PORT = Number(process.env.PORT ?? 8787);
 
@@ -253,77 +255,6 @@ type Capture = {
   responseRaw: string;
 };
 
-// ---------------------------------------------------------------------------
-// Retry-burst guard
-// ---------------------------------------------------------------------------
-
-/**
- * Tell a tight client-side retry loop apart from ordinary traffic, so one can
- * be throttled without touching the other.
- *
- * This exists because a wrong scheme or bad credentials against a
- * fast-failing endpoint can make an agent retry immediately and forever
- * instead of giving up on a 4xx — witnessed with OMP against
- * `http://api.anthropic.com` (should have been `https://`): Anthropic's edge
- * rejects plaintext HTTP in ~30ms with a 400 that carries none of the
- * `x-should-retry` guidance its real API responses do, and OMP's retry policy
- * reads the absence of that header as "retry", producing thousands of
- * identical requests within seconds. Every one of them is a real POST, so
- * `shouldLogRequest` alone cannot tell it apart from real traffic — this can.
- *
- * A well-behaved agent, and a human retrying by hand, never produce the same
- * method+path+status more than a handful of times in a couple of seconds. A
- * retry loop with no backoff does. Once a signature crosses BURST_THRESHOLD
- * inside BURST_WINDOW_MS, further repeats come back `suppressed`. A fresh
- * signature, or a gap wider than the window, restarts the count from zero —
- * this only ever fires on requests that are actually piling up fast.
- */
-export const BURST_THRESHOLD = 20;
-export const BURST_WINDOW_MS = 2_000;
-
-export type BurstState = {
-  key: string;
-  windowStart: number;
-  count: number;
-  warned: boolean;
-};
-
-export type BurstResult = {
-  state: BurstState;
-  suppressed: boolean;
-  /** True on the one call that crosses the threshold — print the warning here, not every time. */
-  justDetected: boolean;
-};
-
-export function burstKey(
-  method: string,
-  reqPath: string,
-  statusCode: number
-): string {
-  return `${method} ${reqPath} ${statusCode}`;
-}
-
-export function trackBurst(
-  state: BurstState | null,
-  key: string,
-  now: number
-): BurstResult {
-  const current =
-    state && state.key === key && now - state.windowStart <= BURST_WINDOW_MS
-      ? state
-      : null;
-  const count = current ? current.count + 1 : 1;
-  const windowStart = current ? current.windowStart : now;
-  const wasWarned = current ? current.warned : false;
-  const suppressed = count > BURST_THRESHOLD;
-  return {
-    state: { key, windowStart, count, warned: wasWarned || suppressed },
-    suppressed,
-    justDetected: suppressed && !wasWarned,
-  };
-}
-
-/** Module-level on purpose: one guard for the whole process, the same as LOG_DIR. */
 let burstState: BurstState | null = null;
 
 function writeCapture(c: Capture): void {
@@ -412,73 +343,6 @@ function writeCapture(c: Capture): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Startup
-// ---------------------------------------------------------------------------
-
-const dim = (text: string) => styleText("dim", text);
-const bold = (text: string) => styleText("bold", text);
-
-/** A field in the banner: a dim label, then the value it describes. */
-function field(label: string, value: string): void {
-  console.log(`  ${dim(label.padEnd(10))} ${value}`);
-}
-
-function printBanner(target: ProxyTarget): void {
-  const rule = dim("-".repeat(72));
-  const forwards =
-    target.kind === "target"
-      ? `https://${target.upstreamHost}`
-      : target.upstreamBaseUrl;
-  console.log("");
-  console.log(rule);
-  field("Agent", bold(`${target.agentLabel} (${target.providerLabel})`));
-  field("Listening", `http://localhost:${PORT}`);
-  field("Forwards", forwards);
-  field("Logs", dim(LOG_DIR));
-  console.log(rule);
-
-  for (const file of target.setup) {
-    console.log("");
-    console.log(`  Put this in ${bold(file.path)}:`);
-    console.log("");
-    for (const line of file.body.split("\n")) {
-      console.log(dim(`      ${line}`));
-    }
-  }
-
-  console.log("");
-  console.log(
-    target.setup.length > 0
-      ? "  Then run your agent in another terminal with:"
-      : "  Run your agent in another terminal with:"
-  );
-  console.log("");
-  console.log(`      ${bold(target.command)}`);
-  console.log("");
-
-  for (const note of target.notes) printWrapped("Note", note);
-  for (const warning of target.warnings) printWrapped("Warning", warning);
-
-  console.log(
-    dim("  Using a different agent now? Run: npm run request-logger -- --force")
-  );
-  // The tool waits on a port, so nothing tells the student it is finished.
-  // Say how to stop it here, where they are already reading.
-  // The styles are not nested. Both dim and bold close with the same code, so
-  // a bold word inside a dim string ends the dim early.
-  console.log(dim("  Press ") + bold("Ctrl+C") + dim(" to stop logging."));
-  console.log(rule);
-  console.log("");
-}
-
-/**
- * Ask the wizard, and keep the answer only if it is to be kept.
- *
- * `offerToRemember` is false when the student has already answered that
- * question: --force replaces a preference they chose to keep, so the new answer
- * simply takes its place. An agent that cannot be logged is never saved.
- */
 async function ask(offerToRemember: boolean): Promise<AgentChoice> {
   const { choice, remember } = await askChoice({ offerToRemember });
   if (remember) saveChoice(STATE_FILE, choice);
@@ -579,32 +443,8 @@ async function main(): Promise<void> {
   );
   server.on("upgrade", rejectUpgrade);
   server.listen(PORT, () => {
-    printBanner(target);
+    printBanner(target, PORT, LOG_DIR);
   });
-}
-
-/** Print a labelled paragraph, indented and wrapped. */
-function printWrapped(label: string, text: string): void {
-  const lines = wrap(text, 66);
-  console.log(`  ${bold(`${label}:`)} ${lines[0] ?? ""}`);
-  for (const line of lines.slice(1)) console.log(`        ${line}`);
-  console.log("");
-}
-
-/** Wrap prose to a width, so a long reason reads as a paragraph. */
-function wrap(text: string, width: number): string[] {
-  const lines: string[] = [];
-  let line = "";
-  for (const word of text.split(/\s+/)) {
-    if (line.length + word.length + 1 > width) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = line ? `${line} ${word}` : word;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
 }
 
 // Only start the wizard and the server when this file is run directly (`npm
