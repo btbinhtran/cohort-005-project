@@ -33,7 +33,7 @@ import { YouTubePlayer } from "~/components/youtube-player";
 import { BookmarkToggle } from "~/components/lesson/bookmark-toggle";
 import { CurriculumSidebar } from "~/components/lesson/curriculum-sidebar";
 import { LessonBreadcrumb } from "~/components/lesson/lesson-breadcrumb";
-import { LessonNote } from "~/components/lesson/lesson-note";
+import { LessonNote } from "~/components/lesson-note";
 import { LessonPager } from "~/components/lesson/lesson-pager";
 import { LockedLesson } from "~/components/lesson/locked-lesson";
 import { QuizSection } from "~/components/lesson/quiz-section";
@@ -410,7 +410,7 @@ function FullLesson({
           )}
 
           {/* Note — under the video, so the Student can write while they watch */}
-          {currentUserId && <LessonNote note={note} />}
+          {currentUserId && <LessonNote key={lesson.id} note={note} />}
 
           {/* Lesson Content */}
           {contentHtml && (
