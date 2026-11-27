@@ -157,12 +157,12 @@ describe("catalogue stats", () => {
   });
 
   it("ignores everything that only belongs to unpublished courses", () => {
-    const shy = addInstructor("shy@example.com");
-    const empty = addCategory("empty");
+    const draftOnlyInstructor = addInstructor("draft-only@example.com");
+    const draftOnlyCategory = addCategory("draft-only");
     const draft = addCourse({
       status: schema.CourseStatus.Draft,
-      instructorId: shy.id,
-      categoryId: empty.id,
+      instructorId: draftOnlyInstructor.id,
+      categoryId: draftOnlyCategory.id,
     });
     addLessons(draft.id, [7]);
     addLessons(base.course.id, [2]);
