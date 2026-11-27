@@ -7,7 +7,7 @@ export type Db = BetterSQLite3Database<typeof schema>;
 
 export const FEATURED_COURSE_LIMIT = 3;
 
-const published = eq(courses.status, schema.CourseStatus.Published);
+const isPublished = eq(courses.status, schema.CourseStatus.Published);
 
 export type FeaturedCourse = {
   id: number;
@@ -41,7 +41,7 @@ export function getFeaturedCourses(database: Db): FeaturedCourse[] {
     .from(courses)
     .innerJoin(users, eq(courses.instructorId, users.id))
     .innerJoin(categories, eq(courses.categoryId, categories.id))
-    .where(published)
+    .where(isPublished)
     .orderBy(desc(courses.createdAt), desc(courses.id))
     .limit(FEATURED_COURSE_LIMIT)
     .all();
@@ -75,14 +75,14 @@ export function getCatalogueStats(database: Db): CatalogueStats {
       categories: countDistinct(courses.categoryId),
     })
     .from(courses)
-    .where(published)
+    .where(isPublished)
     .get();
 
   const lessonTotal = database
     .select({ count: sql<number>`count(*)` })
     .from(lessons)
     .innerJoin(modules, eq(lessons.moduleId, modules.id))
-    .innerJoin(courses, and(eq(modules.courseId, courses.id), published))
+    .innerJoin(courses, and(eq(modules.courseId, courses.id), isPublished))
     .get();
 
   return {
